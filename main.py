@@ -36,8 +36,8 @@ def spectral_mixing(s1,s2,n):
         mix_arr = np.append(mix_arr,(1-n)*elem1+n*elem2)
     return mix_arr
 #read from the disk
-fs_ga, wav_ga = read('GA002.wav')
-wav_pad_ga = np.pad(wav_ga,(0,0),'constant')
+fs_ga, wav_ga = read('GA001.wav')
+wav_pad_ga = np.pad(wav_ga,(0,power_of_two(wav_ga.size)-wav_ga.size),'constant')
 k=wav_pad_ga.size/fs_ga
 hamming_1 = windows.hamming(int(4192*k))
 hamming_1_pad = np.pad(hamming_1,(0,wav_pad_ga.size-int(4192*k)),'constant')
@@ -54,7 +54,6 @@ peaks_ga_cor = [x+int(70*k) for x in peaks_ga]
 #the phase spectrum
 phase_ga = np.unwrap(np.angle(y_ga))
 #fundamental frequency and harmonics and magnitudes of the ff and of the harmonics
-
 frequencies_ga=[]
 frequencies_ga_mag=[]
 for peak_ga in peaks_ga_cor:
@@ -75,8 +74,7 @@ for frequency_ga in frequencies_ga[1:]:
 #print(ff_ga_phase)
 #print(harmonics_phase_ga)
 
-
-fs_cc, wav_cc=read('CC106.wav')
+fs_cc, wav_cc=read('CC103.wav')
 #dividing the CC recording into 25 ms long frames
 hamming_2 = windows.hamming(400)
 frames = []
@@ -88,7 +86,6 @@ mag = []
 mag_arr = np.asarray(mag)
 
 for frame in frames:
-    y_cc_np = fft(frame)
     frame = frame * hamming_2
     frame_pad = np.pad(frame,(0,power_of_two(frame.size)-frame.size),'constant')
     k_1 = frame_pad.size/fs_cc
@@ -96,9 +93,8 @@ for frame in frames:
     freq_cc = fftfreq(y_cc.size,1/fs_cc)
     magnitude_cc = abs(y_cc)
     peaks_cc, properties_cc = find_peaks(magnitude_cc[int(70*k_1):int(8000*k_1)], distance=int(80*k_1))
-    peaks_cc_cor = [x+int(80*k_1) for x in peaks_cc]
-    bins = peaks_cc_cor[1:]
-    
+    peaks_cc_cor = [x+int(70*k_1) for x in peaks_cc]
+    bins = peaks_cc_cor
     phase_cc = np.unwrap(np.angle(y_cc))
     
     frequencies_cc=[]
@@ -117,7 +113,7 @@ for frame in frames:
     ff_cc_phase = linear_interpolation(phase_cc[int(ff_cc*k_1)], phase_cc[int(ff_cc*k_1)+1],ff_cc-int(ff_cc))
     #phases of the harmomics(linear interpolation) 
     harmonics_phase_cc = []
-    for frequency_cc in frequencies_cc[1:]:
+    for frequency_cc in frequencies_cc:
         interpolated_phase_cc = linear_interpolation(phase_cc[int(frequency_cc*k_1)], phase_cc[int(frequency_cc*k_1)+1],frequency_cc-int(frequency_cc))
         harmonics_phase_cc.append(interpolated_phase_cc)
     #print(ff_cc_phase)
@@ -127,8 +123,8 @@ for frame in frames:
     #mapping indices
     mapping_ind = []
     frequency_ratio = int(round(ff_cc))/int(round(ff_ga))
-    for frequency_cc in frequencies_cc[1:]:
-        mapping_ind.append(int((frequencies_cc[1:].index(frequency_cc))/frequency_ratio+0.5))
+    for frequency_cc in frequencies_cc:
+        mapping_ind.append(int((frequencies_cc.index(frequency_cc))/frequency_ratio+0.5))
     
     #frequency shifts
     freq_shifts = []
@@ -139,7 +135,7 @@ for frame in frames:
     
     #gains
     gains = []
-    for mag_ga, mag_cc in zip(frequencies_ga_mag[1:], frequencies_cc_mag[1:]):
+    for mag_ga, mag_cc in zip(frequencies_ga_mag, frequencies_cc_mag):
         gains.append(mag_cc/mag_ga)
     
     #phase corrections
@@ -155,60 +151,64 @@ for frame in frames:
     #gcd_fs = fs_cc*upsample_factor//gcd(upsample_factor, downsample_factor)
     ff_max = max(int(round(ff_cc)),int(round(ff_ga)))
     cutoff_frequency = up_fs/(2*ff_max)
-    cutoff_frequency_n = cutoff_frequency/(up_fs//2)
-    fir_filter = firwin(500,cutoff_frequency_n/10,window='hamming')    
+    cutoff_frequency_n = cutoff_frequency*2/(up_fs)
+    fir_filter = firwin(240,cutoff_frequency_n,window='hamming')    
     wav_ga_resampled = resample_poly(wav_ga,int(round(ff_cc)),int(round(ff_ga)),window=fir_filter)
     #hamming_3 = windows.hamming(wav_ga_resampled.size)
     #wav_ga_resampled = wav_ga_resampled*hamming_3
     y_res = fft(wav_ga_resampled)
     freq_res = fftfreq(y_res.size,1/new_fs)
+    new_bins = [int((freq * y_res.size)/new_fs) for freq in frequencies_cc]
     #plt.figure(2)
     #w,h = freqz(fir_filter, fs=up_fs)
     #plt.plot(w[:10],abs(h[:10]))
     #print(fir_filter)
     #harmonics mapping and filtering
     #print(y_res.size,y_cc.size)
-    
-    synthesis_spectrum = np.zeros(y_cc_np.size,dtype=complex)
-    '''synthesis_spectrum[0:bins[0]] = y_res[0+freq_shifts[0]:bins[0]+freq_shifts[0]]*gains[0]*exp(1j*phase_cor[0])
-    synthesis_spectrum[bins[-1]:synthesis_spectrum.size//2] = y_res[bins[-1]+freq_shifts[-1]:synthesis_spectrum.size//2+freq_shifts[-1]]*gains[-1]*exp(1j*phase_cor[-1])'''
-    for i in range(len(bins)-1) :
-        if synthesis_spectrum[bins[i]:bins[i+1]].shape==y_res[bins[i]+freq_shifts[i]:bins[i+1]+freq_shifts[i+1]].shape:
-            synthesis_spectrum[bins[i]:bins[i+1]] = y_res[bins[i]+freq_shifts[i]:bins[i+1]+freq_shifts[i+1]]*gains[i]*exp(1j*phase_cor[i])
-         
+    synthesis_spectrum = np.zeros(y_cc.size,dtype=complex)
+    #for i in range(len(bins)-1) :
+        #if synthesis_spectrum[bins[i]:bins[i+1]].shape==y_res[int(frequencies_cc[1:][i]):int(frequencies_cc[1:][i])].shape:
+            #synthesis_spectrum[bins[i]:bins[i+1]] = y_res[bins[i]+freq_shifts[i]:bins[i+1]+freq_shifts[i+1]]#*gains[i]*exp(1j*phase_cor[i])
+    for b, f, d, g, ph in zip(bins, new_bins, freq_shifts, gains, phase_cor):
+            synthesis_spectrum[b] = y_res[int(f)+d]*g*exp(1j*ph)
+            #print(b)
+            #print(int(f)+d)
     for value in synthesis_spectrum[0:synthesis_spectrum.size//2]:
         index = list(synthesis_spectrum[0:synthesis_spectrum.size//2]).index(value)
         synthesis_spectrum[synthesis_spectrum.size-index-1] = value
-    
-    
-    plt.figure(1)
-    plt.plot(abs(y_res)[0:y_res.size//2])
-    
-    #plt.plot(abs(np.asarray(synthesis_spectrum)))      
+    #print(frequencies_cc)     
     #spectral mixing
-    mix_arr = np.empty(y_cc_np.size,dtype=complex)
-    mix_arr = spectral_mixing(y_cc_np,synthesis_spectrum,1)
-    
+    mix_arr = np.empty(y_cc.size,dtype=complex)
+    mix_arr = spectral_mixing(y_cc,synthesis_spectrum,1)
+    #print(y_res[new_bins])
     #mag_arr = np.concatenate((mag_arr,mix_arr))
     #ifft
-    new_frame = ifft(synthesis_spectrum)
+    new_frame = ifft(mix_arr)
+    #print(ff_cc)
     frames_new_arr = np.concatenate((frames_new_arr,new_frame))
-
-    
+#print(ff_ga)
 write('GM1.wav',fs_cc,frames_new_arr.astype('int16'))
-
+'''
 plt.figure()
 plt.plot(freq_ga[0:freq_ga.size//2],magnitude_ga[0:magnitude_ga.size//2])
 plt.figure()
 plt.plot(freq_ga[0:freq_ga.size//2],phase_ga[0:phase_ga.size//2])
+'''
 plt.figure()
 plt.plot((np.arange(wav_cc.size//2)/wav_cc.size)*fs_cc,abs(fft(wav_cc))[0:wav_cc.size//2])
-plt.figure()
-plt.plot((np.arange(wav_cc.size//2)/wav_cc.size)*fs_cc,np.unwrap(np.angle(fft(wav_cc)))[0:wav_cc.size//2])
+#plt.figure()
+#plt.plot((np.arange(wav_cc.size//2)/wav_cc.size)*fs_cc,np.unwrap(np.angle(fft(wav_cc)))[0:wav_cc.size//2])
+
 plt.figure()
 plt.plot((np.arange(frames_new_arr.size)/frames_new_arr.size)*fs_cc,abs(fft(frames_new_arr))[0:frames_new_arr.size])
+
+#plt.figure()
+#plt.plot((np.arange(frames_new_arr.size//2)/frames_new_arr.size)*fs_cc,np.unwrap(np.angle(fft(frames_new_arr)))[0:frames_new_arr.size//2])
+
 plt.figure()
-plt.plot((np.arange(frames_new_arr.size//2)/frames_new_arr.size)*fs_cc,np.unwrap(np.angle(fft(frames_new_arr)))[0:frames_new_arr.size//2])
+plt.plot(freq_ga,magnitude_ga)
+#plt.plot(freq_ga[peaks_ga_cor][0:3],magnitude_ga[peaks_ga_cor][0:3],'x')
+
 plt.figure()
 plt.plot(frames_new_arr)
 plt.figure()
@@ -219,3 +219,4 @@ plt.show()
 #print(mag_arr.size,fft(wav_cc).size)
 #print(np.array_equal(mag_arr[0:10000],fft(wav_cc[0:10000])))
 #print(frequencies_ga)
+
