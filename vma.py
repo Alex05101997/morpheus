@@ -42,15 +42,15 @@ k=wav_pad_ga.size/fs_ga
 hamming_1 = windows.hamming(int(4192*k))
 hamming_1_pad = np.pad(hamming_1,(0,wav_pad_ga.size-int(4192*k)),'constant')
 #print(hamming_1.size)
-wav_pad_ga=wav_pad_ga * hamming_1_pad
+#wav_pad_ga=wav_pad_ga * hamming_1_pad
 #print(wav_ga.size)
 #fft
 y_ga = fft(wav_pad_ga)
 freq_ga = fftfreq(y_ga.size,1/fs_ga)
 #the magnitude spectrum and the peaks of the magnitude spectrum
 magnitude_ga = abs(y_ga)
-peaks_ga, properties_ga = find_peaks(magnitude_ga[int(70*k):int(8000*k)], distance=int(80*k))
-peaks_ga_cor = [x+int(70*k) for x in peaks_ga]
+peaks_ga, properties_ga = find_peaks(magnitude_ga[int(80*k):int(8000*k)], distance=int(80*k))
+peaks_ga_cor = [x+int(80*k) for x in peaks_ga]
 #the phase spectrum
 phase_ga = np.unwrap(np.angle(y_ga))
 #fundamental frequency and harmonics and magnitudes of the ff and of the harmonics
@@ -74,7 +74,7 @@ for frequency_ga in frequencies_ga[1:]:
 #print(ff_ga_phase)
 #print(harmonics_phase_ga)
 
-fs_cc, wav_cc=read('CC103.wav')
+fs_cc, wav_cc=read('CC101.wav')
 #dividing the CC recording into 25 ms long frames
 hamming_2 = windows.hamming(400)
 frames = []
@@ -179,7 +179,7 @@ for frame in frames:
     #print(frequencies_cc)     
     #spectral mixing
     mix_arr = np.empty(y_cc.size,dtype=complex)
-    mix_arr = spectral_mixing(y_cc,synthesis_spectrum,1)
+    mix_arr = spectral_mixing(y_cc,synthesis_spectrum,0.75)
     #print(y_res[new_bins])
     #mag_arr = np.concatenate((mag_arr,mix_arr))
     #ifft
@@ -187,7 +187,7 @@ for frame in frames:
     #print(ff_cc)
     frames_new_arr = np.concatenate((frames_new_arr,new_frame))
 #print(ff_ga)
-write('GM1.wav',fs_cc,frames_new_arr.astype('int16'))
+write('GM001.wav',fs_cc,frames_new_arr.astype('int16'))
 '''
 plt.figure()
 plt.plot(freq_ga[0:freq_ga.size//2],magnitude_ga[0:magnitude_ga.size//2])
@@ -200,14 +200,14 @@ plt.plot((np.arange(wav_cc.size//2)/wav_cc.size)*fs_cc,abs(fft(wav_cc))[0:wav_cc
 #plt.plot((np.arange(wav_cc.size//2)/wav_cc.size)*fs_cc,np.unwrap(np.angle(fft(wav_cc)))[0:wav_cc.size//2])
 
 plt.figure()
-plt.plot((np.arange(frames_new_arr.size)/frames_new_arr.size)*fs_cc,abs(fft(frames_new_arr))[0:frames_new_arr.size])
-
+plt.plot((np.arange(4000)/frames_new_arr.size)*fs_cc,abs(fft(frames_new_arr))[0:4000])
+print(frames_new_arr.size)
 #plt.figure()
 #plt.plot((np.arange(frames_new_arr.size//2)/frames_new_arr.size)*fs_cc,np.unwrap(np.angle(fft(frames_new_arr)))[0:frames_new_arr.size//2])
 
 plt.figure()
-plt.plot(freq_ga,magnitude_ga)
-#plt.plot(freq_ga[peaks_ga_cor][0:3],magnitude_ga[peaks_ga_cor][0:3],'x')
+plt.plot(freq_ga[int(80*k):int(400*k)],magnitude_ga[int(80*k):int(400*k)])
+plt.plot(freq_ga[int(ff_ga*k)],magnitude_ga[int(ff_ga*k)],'x')
 
 plt.figure()
 plt.plot(frames_new_arr)
